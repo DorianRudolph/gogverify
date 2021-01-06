@@ -118,24 +118,36 @@ def files_in_dir(path):
 
 def main():
     parser = argparse.ArgumentParser(description="Verify the installation of a game from GOG against the official MD5 hashes.")
-    parser.add_argument("path", help="Directory where the game is installed")
+    parser.add_argument("path", help="Directory where the game is installed", nargs="?")
     parser.add_argument("-q", "--quiet", default=False, action="store_true",
                         help="Suppress all output")
     parser.add_argument("-o", "--os", choices=("windows", "osx"), default="windows",
                         help="OS of the game installation")
     parser.add_argument("-l", "--language", default="en-US",
                         help="Language of the game installation")
+    parser.add_argument("--dump-md5sums", nargs=2, metavar=("GAME_ID", "BUILD_ID"),
+                        help="Dump all md5 checksums for a given gameID and buildID to stdout (md5sum format)")
     global args
     args = parser.parse_args()
 
-    info = get_info(args.path)
-    game_id = info["gameId"]
-    build_id = info["buildId"]
-    log(f"# Name: {info['name']}\n# Game ID: {game_id}\n# Build ID: {build_id}")
+    if args.dump_md5sums:
+        info = {"gameId": args.dump_md5sums[0], "buildId": args.dump_md5sums[1]}
+    else:
+        if not args.path:
+            parser.error("the following arguments are required: path")
+        info = get_info(args.path)
+        log(f"# Name: {info['name']}\n# Game ID: {info['gameId']}\n# Build ID: {info['buildId']}")
 
     # game_id = "1207664643"
     # build_id = "51727259307363981"
-    files = get_files(game_id, build_id, args.os, args.language)
+    files = get_files(info["gameId"], info["buildId"], args.os, args.language)
+
+    if args.dump_md5sums:
+        for file in files:
+            if not file.is_dir:
+            log(f"{file.md5}  {file.path}")
+        exit(0)
+
     file_paths = {file.path for file in files}
     printed_unexpected = False
     for file in files_in_dir(args.path):
