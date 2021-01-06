@@ -48,7 +48,16 @@ def get_info(path):
     if not files:
         error(f'Failed to find info file "{glob_path}".')
     with open(files[0]) as f:
-        return json.load(f)
+        info = json.load(f)
+    if "buildId" not in info:
+        glob_path = os.path.join(path, "goggame-*.id")
+        files = glob.glob(glob_path)
+        if not files:
+            error(f'Failed to find id file "{glob_path}".')
+        with open(files[0]) as f:
+            info["buildId"] = json.load(f)["buildId"]
+    return info
+
 
 
 def compute_md5(path, chunk_size=4096):
