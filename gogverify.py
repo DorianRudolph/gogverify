@@ -145,7 +145,7 @@ def main():
     if args.dump_md5sums:
         for file in files:
             if not file.is_dir:
-            log(f"{file.md5}  {file.path}")
+                log(f"{file.md5}  {file.path}")
         exit(0)
 
     file_paths = {file.path for file in files}
