@@ -55,6 +55,8 @@ def get_info(path):
             if info["gameId"] == info["rootGameId"]:
                 game_info = info
                 break
+    if not game_info:
+        error(f'Failed to find right info file "{glob_path}".')
 
     if "buildId" not in game_info:
         id_file = os.path.join(path, f"goggame-{game_info['gameId']}.id")
@@ -100,7 +102,6 @@ FileInfo = namedtuple("FileInfo", ("path", "md5", "is_dir"))
 
 
 def get_files(game_id, build_id, os_type, language):
-    # Find Build
     builds = download_json(f"https://content-system.gog.com/products/{game_id}/os/{os_type}/builds?generation=2")
     write_temp_json(builds, f"temp/{game_id}/builds.json")
     for build in builds["items"]:
