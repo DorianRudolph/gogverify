@@ -155,7 +155,7 @@ def main():
                         help="Language of the game installation")
     parser.add_argument("--dump-md5sums", nargs=2, metavar=("GAME_ID", "BUILD_ID"),
                         help="Dump all md5 checksums for a given gameID and buildID to stdout (md5sum format)")
-    parser.add_argument("-w", "--write-temp", default=False, action="store_true",
+    parser.add_argument("-w", "--write-temp", default=True, action="store_true",
                         help="Write temp json file to temp folder")
 
     global args
@@ -217,6 +217,10 @@ def main():
         for path, msg in errors:
             log(f"{path}: {msg}")
         exit(1)
+    else:
+        log("\n# No errors.")
+
+    log("\n# All finished.")
 
 
 if __name__ == '__main__':
