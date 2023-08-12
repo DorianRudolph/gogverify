@@ -47,17 +47,23 @@ def get_info(path):
     files = glob.glob(glob_path)
     if not files:
         error(f'Failed to find info file "{glob_path}".')
-    with open(files[0]) as f:
-        info = json.load(f)
-    if "buildId" not in info:
-        glob_path = os.path.join(path, "goggame-*.id")
-        files = glob.glob(glob_path)
-        if not files:
-            error(f'Failed to find id file "{glob_path}".')
-        with open(files[0]) as f:
-            info["buildId"] = json.load(f)["buildId"]
-    return info
 
+    game_info = None
+    for file in files:
+        with open(file) as f:
+            info = json.load(f)
+            if info["gameId"] == info["rootGameId"]:
+                game_info = info
+                break
+
+    if "buildId" not in game_info:
+        id_file = os.path.join(path, f"goggame-{game_info['gameId']}.id")
+        if not id_file:
+            error(f'Failed to find id file "{id_file}".')
+        with open(id_file) as f:
+            game_info["buildId"] = json.load(f)["buildId"]
+
+    return game_info
 
 
 def compute_md5(path, chunk_size=4096):
@@ -82,11 +88,21 @@ def download_json(url, use_zlib=False):
     return json.loads(data.decode("utf-8"))
 
 
+def write_temp_json(json_obj, path):
+    if not args.write_temp:
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wt", encoding="utf-8") as fp:
+        fp.write(json.dumps(json_obj, indent=4))
+
+
 FileInfo = namedtuple("FileInfo", ("path", "md5", "is_dir"))
 
 
-def get_files(game_id, build_id, os, language):
-    builds = download_json(f"https://content-system.gog.com/products/{game_id}/os/{os}/builds?generation=2")
+def get_files(game_id, build_id, os_type, language):
+    # Find Build
+    builds = download_json(f"https://content-system.gog.com/products/{game_id}/os/{os_type}/builds?generation=2")
+    write_temp_json(builds, f"temp/{game_id}/builds.json")
     for build in builds["items"]:
         if build["build_id"] == build_id:
             break
@@ -95,6 +111,7 @@ def get_files(game_id, build_id, os, language):
 
     link = build["link"]
     content = download_json(link, use_zlib=True)
+    write_temp_json(content, f"temp/{game_id}/{build_id}.json")
     files = []
     for depot in content["depots"]:
         if not (language == "*" or language in depot["languages"] or "*" in depot["languages"]):
@@ -102,8 +119,9 @@ def get_files(game_id, build_id, os, language):
 
         manifest = depot["manifest"]
         depot_files = download_json(f"https://cdn.gog.com/content-system/v2/meta/{manifest[:2]}/{manifest[2:4]}/{manifest}", use_zlib=True)
+        write_temp_json(depot_files, f"temp/{game_id}/{build_id}/{manifest}.json")
         for item in depot_files["depot"]["items"]:
-            path = str(Path({"windows": PureWindowsPath, "osx": PurePosixPath}[os](item["path"])))
+            path = str(Path({"windows": PureWindowsPath, "osx": PurePosixPath}[os_type](item["path"])))
             if item["type"] == "DepotDirectory":
                 files.append(FileInfo(path, None, True))
             else:
@@ -136,6 +154,9 @@ def main():
                         help="Language of the game installation")
     parser.add_argument("--dump-md5sums", nargs=2, metavar=("GAME_ID", "BUILD_ID"),
                         help="Dump all md5 checksums for a given gameID and buildID to stdout (md5sum format)")
+    parser.add_argument("-w", "--write-temp", default=False, action="store_true",
+                        help="Write temp json file to temp folder")
+
     global args
     args = parser.parse_args()
 
@@ -165,7 +186,7 @@ def main():
                 log("\n# Unexpected files:")
                 printed_unexpected = True
             log(file)
-    
+
     log("\n# Expected files:")
     errors = []
     for file in files:
@@ -187,7 +208,7 @@ def main():
                         msg = f"MD5 mismatch ({md5})"
         if msg != "OK":
             errors.append((file.path, msg))
-        
+
         log(f"{file.path} ({description}): {msg}")
 
     if errors:
